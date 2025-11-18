@@ -1,0 +1,214 @@
+ INSTALACIÓN EN LINUX
+1. INSTALAR DOCKER
+bash
+# Actualizar sistema
+sudo apt update && sudo apt upgrade -y
+
+# Instalar Docker
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+
+# Agregar usuario al grupo docker
+sudo usermod -aG docker $USER
+
+# Reiniciar sesión o ejecutar:
+newgrp docker
+
+# Verificar
+docker --version
+2. INSTALAR MINIKUBE (Kubernetes)
+bash
+# Descargar minikube
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo install minikube-linux-amd64 /usr/local/bin/minikube
+
+# Instalar kubectl
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+# Iniciar minikube
+minikube start --driver=docker
+
+# Verificar
+kubectl get nodes
+3. INSTALAR NGROK
+bash
+# Descargar ngrok
+wget https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz
+tar -xzf ngrok-v3-stable-linux-amd64.tgz
+sudo mv ngrok /usr/local/bin/
+
+# Configurar authtoken
+ngrok config add-authtoken TU_TOKEN_AQUI
+4. INSTALAR GIT
+bash
+sudo apt install git -y
+5. PREPARAR EL PROYECTO
+bash
+# Clonar o copiar desde USB
+git clone https://github.com/tuusuario/pod-tracker-demo.git
+cd pod-tracker-demo
+
+# O si traés en USB
+cp -r /media/usb/pod-tracker-demo ./
+cd pod-tracker-demo
+6. CONSTRUIR Y DESPLEGAR
+bash
+# Construir imagen Docker
+docker build -t pod-tracker .
+
+# Desplegar en Kubernetes
+kubectl apply -f k8s/
+
+# Esperar a que esté listo
+kubectl wait --for=condition=ready pod -l app=pod-tracker --timeout=180s
+kubectl wait --for=condition=ready pod -l app=mongo --timeout=180s
+
+# Verificar
+kubectl get all
+7. CREAR SCRIPTS
+demo-live.sh:
+
+bash
+#!/bin/bash
+while true; do
+    clear
+    echo "🐳 KUBERNETES LIVE DASHBOARD"
+    echo "============================="
+    echo "🏗️  PODS FÍSICOS:"
+    kubectl get pods -l app=pod-tracker -o wide
+    echo ""
+    echo "🌐 SERVICIOS:"
+    kubectl get services -l app=pod-tracker
+    echo ""
+    echo "📊 ESTADO APLICACIÓN:"
+    kubectl exec -it $(kubectl get pods -l app=mongo -o name | head -1) -- mongosh kubernetes-demo --quiet --eval "
+    var pods = db.pods.find().toArray();
+    var total = pods.reduce((sum, p) => sum + p.userCount, 0);
+    pods.forEach(p => {
+        var icon = p.status === 'running' ? '🟢' : '🔴';
+        var users = p.userCount > 0 ? ' 👥' + p.userCount : '';
+        print('   ' + icon + ' ' + p.name.padEnd(20) + p.status.padEnd(12) + users);
+    });
+    print('   📈 TOTAL USUARIOS: ' + total);
+    " 2>/dev/null
+    echo ""
+    echo "⏱️  Actualizando cada 3 segundos..."
+    sleep 3
+done
+comandos-demo.sh:
+
+bash
+#!/bin/bash
+echo "🚀 COMANDOS RÁPIDOS KUBERNETES"
+echo "1 - Escalar a 5 pods"
+echo "2 - Reducir a 2 pods" 
+echo "3 - Eliminar pod aleatorio"
+echo "4 - Eliminar TODOS los pods"
+echo "5 - Resetear aplicación"
+echo "6 - Ver logs"
+echo "q - Salir"
+
+while true; do
+    read -p "Selecciona: " choice
+    case $choice in
+        1) echo "📈 Escalando..."; kubectl scale deployment pod-tracker --replicas=5 ;;
+        2) echo "📉 Reduciendo..."; kubectl scale deployment pod-tracker --replicas=2 ;;
+        3) echo "🎯 Eliminando..."; kubectl delete pod $(kubectl get pods -l app=pod-tracker -o name | shuf -n 1) ;;
+        4) echo "💥 Eliminando TODOS..."; kubectl delete pods -l app=pod-tracker ;;
+        5) echo "🔄 Reseteando..."; curl -X POST http://localhost:8080/api/admin/restart-pods -H "Content-Type: application/json" ;;
+        6) echo "📋 Logs..."; kubectl logs -f deployment/pod-tracker ;;
+        q) echo "👋 Saliendo..."; exit 0 ;;
+        *) echo "❌ Opción inválida" ;;
+    esac
+    echo ""
+done
+8. HACER EJECUTABLES
+bash
+chmod +x demo-live.sh
+chmod +x comandos-demo.sh
+🚀 SCRIPT DE INSTALACIÓN AUTOMÁTICA
+Crea install-linux.sh para llevar en USB:
+
+bash
+#!/bin/bash
+echo "🐧 INSTALACIÓN AUTOMÁTICA LINUX"
+
+# Instalar Docker
+echo "1. Instalando Docker..."
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+# Instalar minikube y kubectl
+echo "2. Instalando Kubernetes..."
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo install minikube-linux-amd64 /usr/local/bin/minikube
+
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+# Instalar ngrok
+echo "3. Instalando Ngrok..."
+wget -q https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz
+tar -xzf ngrok-v3-stable-linux-amd64.tgz
+sudo mv ngrok /usr/local/bin/
+
+echo "✅ Instalación completada"
+echo "🔁 Ejecuta: newgrp docker && minikube start --driver=docker"
+🎯 EJECUCIÓN FINAL
+bash
+# Terminal 1: Aplicación
+kubectl port-forward service/pod-tracker-service 8080:80
+
+# Terminal 2: Ngrok
+ngrok http 8080
+
+# Terminal 3: Dashboard
+./demo-live.sh
+
+# Terminal 4: Comandos  
+./comandos-demo.sh
+
+install-linux.sh:
+
+bash
+#!/bin/bash
+echo "🐧 INSTALANDO DOCKER ENGINE + MINIKUBE"
+
+# 1. Docker Engine
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+
+# 2. Minikube (nuestro Kubernetes)
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo install minikube-linux-amd64 /usr/local/bin/minikube
+
+# 3. kubectl
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+echo "✅ Instalación completada"
+echo "🔁 Ahora ejecuta:"
+echo "   newgrp docker     # Para recargar grupos"
+echo "   minikube start --driver=docker  # Iniciar Kubernetes"
+🎯 PARA LA DEMO ESTÁ BIEN
+Ventajas de esta setup:
+
+✅ Más liviana
+
+✅ Todo por terminal (mejor para proyectar)
+
+✅ Kubernetes funciona igual
+
+✅ Los comandos son los mismos
+
+Desventajas:
+
+❌ No hay interfaz gráfica
+
+❌ Minikube puede ser más lento para iniciar
+
+¿Te parece bien esta aproximación o preferís intentar con Docker Desktop para Linux?
+

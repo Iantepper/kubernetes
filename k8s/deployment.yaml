@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pod-tracker
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: pod-tracker
+  template:
+    metadata:
+      labels:
+        app: pod-tracker
+    spec:
+      containers:
+      - name: pod-tracker
+        image: pod-tracker:latest
+        imagePullPolicy: Never  # ← AGREGAR ESTA LÍNEA
+        ports:
+        - containerPort: 3000
+        env:
+        - name: MONGODB_URI
+          value: "mongodb://mongo-service:27017/kubernetes-demo"

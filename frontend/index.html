@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubernetes Pod Tracker - DEMO</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: white;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .client-info {
+            font-size: 1.1em;
+            margin: 10px 0;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .current-pod {
+            font-size: 2.5em;
+            font-weight: bold;
+            text-align: center;
+            margin: 20px 0;
+            padding: 20px;
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            border-radius: 10px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.8em;
+            font-weight: bold;
+            color: #4ecdc4;
+        }
+
+        .cluster-viz {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+
+        .pod-viz {
+            width: 100px;
+            height: 100px;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .pod-viz.running {
+            background: linear-gradient(45deg, #00b894, #55efc4);
+        }
+
+        .pod-viz.current {
+            transform: scale(1.1);
+            box-shadow: 0 0 20px rgba(78, 205, 196, 0.8);
+        }
+
+        .pod-viz.terminated {
+            background: linear-gradient(45deg, #d63031, #ff7675);
+            opacity: 0.6;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .btn-primary {
+            background: #4ecdc4;
+            color: white;
+        }
+
+        .history-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            border-left: 4px solid #4ecdc4;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🐳 Kubernetes Pod Tracker</h1>
+            <div class="client-info">
+                <strong>👤 Cliente:</strong> <span id="client-id">Conectando...</span> | 
+                <strong>🕐 Tiempo:</strong> <span id="connection-time">0s</span>
+            </div>
+        </div>
+
+        <div class="dashboard">
+            <div class="card">
+                <h2>📍 Pod Actual</h2>
+                <div class="current-pod" id="current-pod">Conectando...</div>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div>👥 En este pod</div>
+                        <div class="stat-value" id="pod-visitors">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div>📊 Total visitas</div>
+                        <div class="stat-value" id="total-visits">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>🏗️ Cluster Kubernetes</h2>
+                <div class="cluster-viz" id="cluster-viz">
+                    <!-- Pods se generan aquí -->
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>📈 Estadísticas</h2>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div>Pods Activos</div>
+                        <div class="stat-value" id="active-pods">0</div>
+                    </div>
+                    <div class="stat-item">
+                        <div>Usuarios Totales</div>
+                        <div class="stat-value" id="total-users">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>🔄 Historial</h2>
+                <div id="history" style="max-height: 200px; overflow-y: auto;">
+                    <!-- Historial aquí -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        class PodTracker {
+            constructor() {
+                this.clientId = 'user-' + Math.random().toString(36).substr(2, 8);
+                this.currentPod = null;
+                this.connectionStart = Date.now();
+                
+                this.init();
+            }
+
+            async init() {
+                document.getElementById('client-id').textContent = this.clientId;
+                await this.connect();
+                this.startHealthCheck();
+                this.startTimeTracker();
+            }
+
+            async connect() {
+                try {
+                    const response = await fetch('/api/connect', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ clientId: this.clientId })
+                    });
+                    
+                    const data = await response.json();
+                    this.updateUI(data);
+                    this.addHistory('Conectado al cluster');
+                    
+                } catch (error) {
+                    console.error('Error conectando:', error);
+                    this.addHistory('❌ Error de conexión');
+                }
+            }
+
+            updateUI(data) {
+                const oldPod = this.currentPod;
+                this.currentPod = data.podName;
+                
+                document.getElementById('current-pod').textContent = this.currentPod;
+                document.getElementById('pod-visitors').textContent = data.podVisitors || 0;
+                
+                if (data.clusterStatus) {
+                    this.renderCluster(data.clusterStatus);
+                }
+                
+                if (oldPod && oldPod !== this.currentPod) {
+                    this.addHistory(`🔄 Movido: ${oldPod} → ${this.currentPod}`);
+                }
+            }
+
+            renderCluster(clusterStatus) {
+                const container = document.getElementById('cluster-viz');
+                const pods = Object.keys(clusterStatus);
+                
+                let totalUsers = 0;
+                let activePods = 0;
+                
+                container.innerHTML = pods.map(podName => {
+                    const pod = clusterStatus[podName];
+                    const isCurrent = podName === this.currentPod;
+                    totalUsers += pod.visitors || 0;
+                    if (pod.status === 'running') activePods++;
+                    
+                    return `
+                        <div class="pod-viz ${pod.status} ${isCurrent ? 'current' : ''}">
+                            <strong>${podName}</strong>
+                            <div>${pod.visitors || 0} users</div>
+                            <small>${pod.status}</small>
+                        </div>
+                    `;
+                }).join('');
+                
+                document.getElementById('active-pods').textContent = activePods;
+                document.getElementById('total-users').textContent = totalUsers;
+            }
+
+            addHistory(message) {
+                const history = document.getElementById('history');
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.innerHTML = `<strong>${new Date().toLocaleTimeString()}</strong> - ${message}`;
+                history.insertBefore(item, history.firstChild);
+            }
+
+            async startHealthCheck() {
+                setInterval(async () => {
+                    try {
+                        const response = await fetch(`/api/health?clientId=${this.clientId}`);
+                        const data = await response.json();
+                        this.updateUI(data);
+                    } catch (error) {
+                        console.error('Health check error:', error);
+                    }
+                }, 3000);
+            }
+
+            startTimeTracker() {
+                setInterval(() => {
+                    const seconds = Math.floor((Date.now() - this.connectionStart) / 1000);
+                    document.getElementById('connection-time').textContent = `${seconds}s`;
+                }, 1000);
+            }
+        }
+
+        // Funciones globales para los botones
+        async function killCurrentPod() {
+            const currentPod = document.getElementById('current-pod').textContent;
+            if (currentPod && currentPod !== 'Conectando...') {
+                try {
+                    await fetch('/api/admin/kill-pod', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ podName: currentPod })
+                    });
+                } catch (error) {
+                    console.error('Error eliminando pod:', error);
+                }
+            }
+        }
+
+        async function refreshCluster() {
+            try {
+                const response = await fetch('/api/cluster-status');
+                const data = await response.json();
+                tracker.renderCluster(data.clusterStatus);
+            } catch (error) {
+                console.error('Error actualizando cluster:', error);
+            }
+        }
+
+        // Inicializar
+        let tracker;
+        document.addEventListener('DOMContentLoaded', () => {
+            tracker = new PodTracker();
+        });
+    </script>
+</body>
+</html>
