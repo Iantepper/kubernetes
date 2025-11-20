@@ -1,0 +1,231 @@
+1. Ver pods básico
+bash
+kubectl get pods
+2. Ver pods con más detalles
+bash
+kubectl get pods -o wide
+3. Ver todos los recursos
+bash
+kubectl get all
+4. Escalar deployment
+bash
+kubectl scale deployment pod-tracker --replicas=5
+5. Eliminar un pod específico
+bash
+kubectl delete pod pod-tracker-7d8fcb96d6-abc123
+6. Eliminar pods por selector
+bash
+kubectl delete pods -l app=pod-tracker
+7. Ver descripción detallada de un pod
+bash
+kubectl describe pod pod-tracker-7d8fcb96d6-abc123
+8. Ver logs de un pod
+bash
+kubectl logs pod-tracker-7d8fcb96d6-abc123
+9. Ver logs de un deployment
+bash
+kubectl logs deployment/pod-tracker
+10. Seguir logs en tiempo real
+bash
+kubectl logs -f deployment/pod-tracker
+11. Ejecutar comando dentro de un pod
+bash
+kubectl exec -it pod-tracker-7d8fcb96d6-abc123 -- /bin/bash
+12. Reiniciar un deployment
+bash
+kubectl rollout restart deployment pod-tracker
+13. Ver historial de deployments
+bash
+kubectl rollout history deployment pod-tracker
+14. Ver recursos utilizados
+bash
+kubectl top pods
+15. Crear un pod temporal para debugging
+bash
+kubectl run debug-pod --image=busybox --rm -it --restart=Never -- /bin/sh
+16. Aplicar configuración desde archivo
+bash
+kubectl apply -f k8s/deployment.yaml
+17. Eliminar todo un deployment
+bash
+kubectl delete deployment pod-tracker
+18. Ver eventos del cluster
+bash
+kubectl get events --sort-by=.metadata.creationTimestamp
+19. Ver pods en todos los namespaces
+bash
+kubectl get pods --all-namespaces
+20. Port-forward para acceder a un servicio
+bash
+kubectl port-forward service/pod-tracker-service 8080:80
+🎮 COMANDOS AVANZADOS PARA LA DEMO
+21. Auto-escalado (si estuviera configurado)
+bash
+kubectl autoscale deployment pod-tracker --min=2 --max=10 --cpu-percent=80
+22. Ver condiciones de los pods
+bash
+kubectl get pods -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}'
+23. Drainear un nodo (preparar para mantenimiento)
+bash
+kubectl drain <node-name> --ignore-daemonsets
+24. Ver recursos definidos
+bash
+kubectl get deployments,services,pods
+25. Editar deployment en vivo
+bash
+kubectl edit deployment pod-tracker
+📝 PARA LA CLASE - EXPLICACIONES RÁPIDAS
+"Cuando escalamos a 5 réplicas:"
+
+bash
+kubectl scale deployment pod-tracker --replicas=5
+"Kubernetes crea automáticamente 2 pods nuevos para cumplir con el estado deseado"
+
+"Cuando eliminamos un pod:"
+
+bash
+kubectl delete pod pod-tracker-7d8fcb96d6-abc123
+"Kubernetes detecta que el estado actual no coincide con el deseado y crea uno nuevo"
+
+"Cuando vemos los logs:"
+
+bash
+kubectl logs -f deployment/pod-tracker
+"Podemos ver en tiempo real cómo los usuarios se conectan y se redistribuyen"
+
+¿Querés que prepare alguna explicación específica para algún comando?
+
+queria de tipo si hay tanto stres en cpu agregar mas pods y esas cosas
+¡Ah! Querés comandos para auto-escalado y manejo de recursos. Aquí tienes:
+
+🚀 AUTO-ESCALADO Y GESTIÓN DE RECURSOS
+1. Ver uso de CPU/Memoria
+bash
+kubectl top pods
+kubectl top nodes
+2. Configurar Auto-escalado (HPA)
+bash
+# Escalar automáticamente cuando CPU > 50%
+kubectl autoscale deployment pod-tracker --min=2 --max=10 --cpu-percent=50
+3. Ver auto-escaladores configurados
+bash
+kubectl get hpa
+4. Eliminar auto-escalador
+bash
+kubectl delete hpa pod-tracker
+5. Ver recursos definidos en pods
+bash
+kubectl describe deployment pod-tracker | grep -A 5 Resources
+6. Configurar límites de recursos en deployment
+bash
+# Editar el deployment para agregar:
+kubectl edit deployment pod-tracker
+yaml
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "256Mi" 
+    cpu: "200m"
+7. Simular estrés de CPU
+bash
+# Crear un pod que consuma CPU
+kubectl run stress-test --image=busybox --restart=Never -- stress --cpu 2
+8. Ver métricas detalladas
+bash
+kubectl top pod --containers
+9. Escalar basado en memoria
+bash
+# Necesitas metrics-server y configurar HPA para memoria
+kubectl autoscale deployment pod-tracker --min=2 --max=10 --cpu-percent=50 --memory-percent=70
+10. Ver condiciones de los nodos
+bash
+kubectl describe nodes | grep -A 10 "Capacity\|Allocatable"
+🎯 PARA LA DEMO - ESCENARIOS PRÁCTICOS
+Escenario 1: "Muchos usuarios conectándose"
+bash
+# Escalar manualmente
+kubectl scale deployment pod-tracker --replicas=8
+echo "✅ Agregamos más pods para manejar la carga"
+Escenario 2: "CPU muy alta"
+bash
+# Ver uso
+kubectl top pods
+# Configurar auto-escalado
+kubectl autoscale deployment pod-tracker --min=3 --max=15 --cpu-percent=60
+echo "✅ Kubernetes ahora escalará automáticamente cuando CPU > 60%"
+Escenario 3: "Recursos limitados"
+bash
+kubectl describe deployment pod-tracker | grep -A 3 Resources
+echo "✅ Cada pod tiene límites: máximo 200m CPU y 256Mi memoria"
+Escenario 4: "Recuperación automática"
+bash
+# Eliminar varios pods
+kubectl delete pods -l app=pod-tracker --grace-period=0 --force
+echo "🎯 Eliminamos pods forzadamente..."
+sleep 10
+kubectl get pods
+echo "✅ Kubernetes ya creó reemplazos automáticamente"
+📊 COMANDOS DE MONITOREO AVANZADO
+11. Ver métricas históricas
+bash
+# Si tienes Prometheus instalado
+kubectl get --raw /apis/metrics.k8s.io/v1beta1/namespaces/default/pods
+12. Ver capacidad del cluster
+bash
+kubectl describe nodes | grep -E "(Capacity|Allocatable):" | head -6
+13. Ver pods por nodo
+bash
+kubectl get pods -o wide --sort-by=.spec.nodeName
+14. Ver eventos de escalado
+bash
+kubectl get events --field-selector reason=SuccessfulRescale
+15. Ver configuración de HPA
+bash
+kubectl describe hpa pod-tracker
+🎮 SCRIPT PARA DEMO DE AUTO-ESCALADO
+Crea demo-auto-scale.sh:
+
+bash
+#!/bin/bash
+
+echo "🚀 DEMO: AUTO-ESCALADO KUBERNETES"
+echo "================================="
+
+echo "1. Estado inicial:"
+kubectl get pods -l app=pod-tracker
+
+echo ""
+echo "2. Configurando auto-escalado..."
+kubectl autoscale deployment pod-tracker --min=2 --max=8 --cpu-percent=30
+
+echo ""
+echo "3. Auto-escalador configurado:"
+kubectl get hpa
+
+echo ""
+echo "4. Simulando carga alta..."
+echo "   (En producción, esto pasaría con muchos usuarios)"
+echo ""
+echo "💡 Kubernetes escalará automáticamente cuando:"
+echo "   - CPU > 30%"
+echo "   - Mínimo: 2 pods, Máximo: 8 pods"
+💡 PUNTOS DE EXPLICACIÓN
+"Kubernetes puede escalar automáticamente cuando:
+
+CPU alta (> 50%)
+
+Memoria alta (> 70%)
+
+Muchas peticiones por segundo"
+
+"Los límites evitan que:
+
+Un pod consuma todos los recursos
+
+La aplicación se caiga por falta de memoria
+
+Un mal funcionamiento afecte todo el cluster"
+
+¿Querés que prepare algún escenario específico de auto-escalado?

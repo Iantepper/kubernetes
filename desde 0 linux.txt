@@ -1,0 +1,174 @@
+GUÍA COMPLETA DESDE CERO - LINUX
+📋 CHECKLIST PRE-DEMO
+✅ ANTES DE IR AL INSTITUTO
+Ngrok account creado y authtoken anotado
+
+USB con: carpeta app/ completa + scripts
+
+Notas con comandos clave
+
+Cable HDMI/VGA para proyectar
+
+✅ EN LA MÁQUINA LINUX (45-60 min)
+bash
+# TIEMPO ESTIMADO: 5-10 min
+# 1. CONECTAR USB Y COPIAR ARCHIVOS
+cp -r /media/usb/app/ ~/Desktop/
+cd ~/Desktop/app
+
+# TIEMPO ESTIMADO: 15-20 min  
+# 2. INSTALAR DOCKER
+curl -fsSL https://get.docker.com -o get-docker.sh
+sudo sh get-docker.sh
+sudo usermod -aG docker $USER
+newgrp docker
+
+# TIEMPO ESTIMADO: 10 min
+# 3. INSTALAR MINIKUBE Y KUBECTL
+curl -LO https://storage.googleapis.com/minikube/releases/latest/minikube-linux-amd64
+sudo install minikube-linux-amd64 /usr/local/bin/minikube
+
+curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+
+# TIEMPO ESTIMADO: 5 min
+# 4. INSTALAR NGROK
+wget https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz
+tar -xzf ngrok-v3-stable-linux-amd64.tgz
+sudo mv ngrok /usr/local/bin/
+ngrok config add-authtoken TU_TOKEN_AQUI
+
+# TIEMPO ESTIMADO: 5 min
+# 5. INICIAR KUBERNETES
+minikube start --driver=docker
+
+# TIEMPO ESTIMADO: 10 min
+# 6. DESPLEGAR APLICACIÓN
+docker build -t pod-tracker .
+kubectl apply -f k8s/
+kubectl wait --for=condition=ready pod -l app=pod-tracker --timeout=180s
+🚀 SCRIPTS PARA CREAR EN EL MOMENTO
+demo-live.sh
+bash
+#!/bin/bash
+while true; do
+    clear
+    echo "🐳 KUBERNETES LIVE DASHBOARD"
+    echo "============================="
+    echo "🏗️  PODS FÍSICOS:"
+    kubectl get pods -l app=pod-tracker -o wide
+    echo ""
+    echo "🌐 SERVICIOS:"
+    kubectl get services -l app=pod-tracker
+    echo ""
+    echo "📊 ESTADO APLICACIÓN:"
+    kubectl exec -it $(kubectl get pods -l app=mongo -o name | head -1) -- mongosh kubernetes-demo --quiet --eval "
+    var pods = db.pods.find().toArray();
+    var total = pods.reduce((sum, p) => sum + p.userCount, 0);
+    pods.forEach(p => {
+        var icon = p.status === 'running' ? '🟢' : '🔴';
+        var users = p.userCount > 0 ? ' 👥' + p.userCount : '';
+        print('   ' + icon + ' ' + p.name.padEnd(20) + p.status.padEnd(12) + users);
+    });
+    print('   📈 TOTAL USUARIOS: ' + total);
+    " 2>/dev/null
+    echo ""
+    echo "⏱️  Actualizando cada 15 segundos..."
+    sleep 15
+done
+comandos-demo.sh
+bash
+#!/bin/bash
+echo "🚀 COMANDOS KUBERNETES - DEMO"
+echo "1 - Ver pods"
+echo "2 - Escalar a 5 pods"
+echo "3 - Reducir a 2 pods" 
+echo "4 - Eliminar pod aleatorio"
+echo "5 - Eliminar TODOS los pods"
+echo "6 - Ver logs aplicación"
+echo "7 - Resetear aplicación"
+echo "q - Salir"
+
+while true; do
+    read -p "Selecciona: " choice
+    case $choice in
+        1) kubectl get pods -l app=pod-tracker ;;
+        2) kubectl scale deployment pod-tracker --replicas=5 ;;
+        3) kubectl scale deployment pod-tracker --replicas=2 ;;
+        4) kubectl delete pod $(kubectl get pods -l app=pod-tracker -o name | shuf -n 1) ;;
+        5) kubectl delete pods -l app=pod-tracker ;;
+        6) kubectl logs -f deployment/pod-tracker ;;
+        7) curl -X POST http://localhost:8080/api/admin/restart-pods -H "Content-Type: application/json" ;;
+        q) exit 0 ;;
+        *) echo "❌ Opción inválida" ;;
+    esac
+    echo ""
+done
+🎬 EJECUCIÓN FINAL - 4 TERMINALES
+Terminal 1 - Aplicación
+bash
+kubectl port-forward service/pod-tracker-service 8080:80
+Terminal 2 - Ngrok (PROYECTAR)
+bash
+ngrok http 8080
+# COMPARTIR ESTA URL: https://abc123-def456.ngrok.io
+Terminal 3 - Dashboard (PROYECTAR)
+bash
+chmod +x demo-live.sh
+./demo-live.sh
+Terminal 4 - Comandos
+bash
+chmod +x comandos-demo.sh
+./comandos-demo.sh
+🆘 SOLUCIÓN DE PROBLEMAS RÁPIDOS
+Si Docker da error de permisos:
+bash
+sudo usermod -aG docker $USER
+newgrp docker
+Si Minikube no inicia:
+bash
+minikube delete
+minikube start --driver=docker
+Si la app no funciona:
+bash
+kubectl delete -f k8s/
+kubectl apply -f k8s/
+Si Ngrok no funciona:
+bash
+# Alternativa 1: localtunnel
+npm install -g localtunnel
+lt --port 8080
+
+# Alternativa 2: serveo
+ssh -R 80:localhost:8080 serveo.net
+📝 NOTAS PARA LA EXPLICACIÓN
+"Kubernetes es como un piloto automático"
+
+Nosotros definimos: "quiero 3 pods corriendo"
+
+Kubernetes se encarga de mantener ese estado
+
+Si un pod muere, crea uno nuevo automáticamente
+
+"Escalado manual vs automático"
+
+Manual: kubectl scale --replicas=5
+
+Automático: Configurar HPA para que escale solo con carga
+
+"Alta disponibilidad"
+
+Los usuarios no notan cuando un pod falla
+
+Se redistribuyen automáticamente
+
+Kubernetes crea reemplazos
+
+🎯 FLUJO DE LA CLASE (60 min)
+0-10 min: Instalación rápida
+10-20 min: Explicación conceptual + dashboard
+20-35 min: Demo - alumnos se conectan
+35-50 min: Demo - failover y escalado
+50-60 min: Preguntas y cierre
+
+¿Listo para mañana? ¿Alguna duda específica?
